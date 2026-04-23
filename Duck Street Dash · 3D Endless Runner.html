@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<!-- saved from url=(0068)https://ethanhomepage.infinityfreeapp.com/elevate-webworks/game.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <!-- SECTION: Meta -->
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Duck Street Dash · 3D Endless Runner</title>
+
+    <!-- SECTION: Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com/">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+    <link href="./Duck Street Dash · 3D Endless Runner_files/css2" rel="stylesheet">
+
+    <!-- SECTION: Styles -->
+    <link rel="stylesheet" href="./Duck Street Dash · 3D Endless Runner_files/style.css">
+    <link rel="icon" href="https://ethanhomepage.infinityfreeapp.com/elevate-webworks/3dduck.jpg" type="image/jpg">
+
+    <!-- SECTION: Three.js CDN -->
+    <script src="./Duck Street Dash · 3D Endless Runner_files/three.min.js.下载"></script>
+<link rel="stylesheet" href="chrome-extension://af5434f7-b1ce-422c-b6eb-3434fca31434/app/content-style.css"></head>
+
+<body class="app gradient-mesh">
+    <!-- Decorative shapes -->
+    <div class="floating-shape shape-1" aria-hidden="true"></div>
+    <div class="floating-shape shape-2" aria-hidden="true"></div>
+
+    <!-- SECTION: Game Shell -->
+    <main class="shell" aria-label="Duck Street Dash game">
+        <!-- SECTION: Header -->
+        <header class="shell__header">
+            <div class="branding">
+                <div class="branding__mark">🦆</div>
+                <div class="branding__copy">
+                    <h1 class="title">Duck Street Dash</h1>
+                    <p class="subtitle">
+                        Jump the streets. Dodge the chaos. Stay out of the water.
+                    </p>
+                </div>
+            </div>
+            <button class="btn btn--ghost" id="helpToggle" type="button">
+                How to play
+            </button>
+        </header>
+
+        <!-- SECTION: Game & HUD -->
+        <section class="layout">
+            <!-- Game viewport -->
+            <section class="viewport" aria-label="3D game viewport">
+                <canvas id="gameCanvas" class="viewport__canvas" aria-hidden="true" width="1286" height="539"></canvas>
+
+                <!-- HUD overlay -->
+                <div class="hud" aria-hidden="true">
+                    <div class="hud__row">
+                        <div class="hud__pill">
+                            <span class="hud__label">Score</span>
+                            <span class="hud__value" id="scoreValue">0</span>
+                        </div>
+                        <div class="hud__pill hud__pill--accent">
+                            <span class="hud__label">Best</span>
+                            <span class="hud__value" id="bestValue">0</span>
+                        </div>
+                    </div>
+                    <div class="hud__row hud__row--status">
+                        <span class="status-dot" id="speedDot"></span>
+                        <span class="status-copy" id="statusCopy">Hard mode: current difficulty with more cars.</span>
+                    </div>
+                </div>
+
+                <!-- Overlay: Start / Game Over -->
+                <div class="overlay" id="overlay" aria-live="polite">
+                    <div class="overlay__card shadow-soft gradient-border">
+                        <h2 class="overlay__title" id="overlayTitle">
+                            Street-ready, duck?
+                        </h2>
+                        <p class="overlay__text" id="overlayText">
+                            Dodge cars, hop over water, and survive as long as you can.
+                        </p>
+                        <div class="overlay__hint">
+                            <p>
+                                <strong>Keyboard:</strong> ← / → to lane switch · ↑ to jump
+                            </p>
+                            <p>
+                                <strong>Touch:</strong> Tap left / right to move · Tap top to
+                                jump
+                            </p>
+                        </div>
+                        <button class="btn btn--primary" id="startButton" type="button">
+                            Start run
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: Touch Controls / Info -->
+            <aside class="side" aria-label="Controls and tips">
+                <section class="panel shadow-soft">
+                    <h2 class="panel__title">Touch controls</h2>
+                    <div class="touch-grid" aria-hidden="true">
+                        <button class="touch touch--left" id="touchLeft" type="button">
+                            <span class="touch__label">Left</span>
+                        </button>
+                        <button class="touch touch--right" id="touchRight" type="button">
+                            <span class="touch__label">Right</span>
+                        </button>
+                        <button class="touch touch--jump" id="touchJump" type="button">
+                            <span class="touch__label">Jump</span>
+                        </button>
+                    </div>
+                    <div class="difficulty-toggle" aria-label="Difficulty settings">
+                        <span class="difficulty__label">Difficulty</span>
+                        <button class="btn btn--ghost difficulty__button" id="easyButton" type="button">Easy</button>
+                        <button class="btn btn--ghost difficulty__button difficulty__button--active" id="hardButton" type="button">Hard</button>
+                    </div>
+                    <p class="panel__hint">
+                        Big buttons for thumbs. You can also swipe up to jump.
+                    </p>
+                </section>
+
+                <section class="panel panel--compact shadow-soft" id="helpPanel" style="display: block;">
+                    <h2 class="panel__title">How to play</h2>
+                    <ul class="rule-list">
+                        <li>
+                            🏎️ Cars will try to cut you off. If they hit you, the run ends.
+                        </li>
+                        <li>
+                            🌊 Streets are broken by canals. Miss the road and you splash
+                            out.
+                        </li>
+                        <li>
+                            ⚡ Survive longer to ramp up the speed and your score
+                            multiplier.
+                        </li>
+                        <li>💾 Best score is saved locally in this browser.</li>
+                    </ul>
+                </section>
+            </aside>
+        </section>
+    </main>
+
+    <!-- SECTION: Scripts -->
+    <script src="./Duck Street Dash · 3D Endless Runner_files/script.js.下载"></script>
+
+
+</body></html>
