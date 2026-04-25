@@ -1,9 +1,6 @@
 // Duck Street Dash - Endless Runner
 // SECTION: Core game setup
 /* global THREE */
-/* global THREE */
-// Duck Street Dash - Endless Runner
-// SECTION: Core game setup
 (function () {
   if (typeof THREE === 'undefined') {
     console.warn('Three.js failed to load. 3D view disabled, but UI still works.');
@@ -17,6 +14,7 @@
   const overlayText = document.getElementById('overlayText');
   const scoreValue = document.getElementById('scoreValue');
   const bestValue = document.getElementById('bestValue');
+  const difficultyValue = document.getElementById('difficultyValue');
   const statusCopy = document.getElementById('statusCopy');
   const speedDot = document.getElementById('speedDot');
   const helpToggle = document.getElementById('helpToggle');
@@ -25,22 +23,35 @@
   const touchLeft = document.getElementById('touchLeft');
   const touchRight = document.getElementById('touchRight');
   const touchJump = document.getElementById('touchJump');
+  const easyButton = document.getElementById('easyButton');
+  const hardButton = document.getElementById('hardButton');
+
+  let currentLevel =1; // 1: classic, 2: with trees and shields
 
   // SECTION: Game state
   const LANES = [-1.5, 0, 1.5];
   const DUCK_Y_IDLE = 0.4;
-  const DUCK_JUMP_HEIGHT = 2.1;
-  const JUMP_DURATION = 0.8; // seconds
+  let DUCK_JUMP_HEIGHT = 2.4;
+  let JUMP_DURATION = 1.0; // seconds
+  const BASE_JUMP_HEIGHT = 2.0;
+  const BASE_JUMP_DURATION = 1.0;
+  
+  let isEasyMode = true; // difficulty toggle
 
   let scene, camera, renderer;
-  let roadGroup, waterGroup, carGroup;
+  let roadGroup, waterGroup, carGroup, treeGroup;
   let duck;
+
+  // power-up / hazard state
+  let isShielded = false;
+  let shieldTime = 0;
+  const SHIELD_DURATION = 6; // seconds
 
   let gameRunning = false;
   let gameOver = false;
   let score = 0;
   let bestScore = Number(localStorage.getItem('duckDashBest') || 0);
-  let baseSpeed = 4.2; // units per second (reduced for easier play)
+  let baseSpeed = 5; // units per second (reduced for easier play)
   let speed = baseSpeed;
   let laneIndex = 1; // middle lane
   let jumpTime = 0;
@@ -57,6 +68,7 @@
     const height = canvas.clientHeight || 340;
 
     scene = new THREE.Scene();
+    // background color will be set per-level in buildTrack
     scene.background = new THREE.Color(0x020617);
 
     camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
@@ -86,10 +98,11 @@
     roadGroup = new THREE.Group();
     waterGroup = new THREE.Group();
     carGroup = new THREE.Group();
-    scene.add(roadGroup, waterGroup, carGroup);
+    treeGroup = new THREE.Group();
+    scene.add(roadGroup, waterGroup, carGroup, treeGroup);
 
     // Ground base
-    const groundGeo = new THREE.PlaneGeometry(20, 60);
+    const groundGeo = new THREE.PlaneGeometry(40, 80);
     const groundMat = new THREE.MeshStandardMaterial({ color: 0x020617 });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
@@ -118,6 +131,25 @@
   }
 
   // SECTION: World building
+  function buildTree(trunkMat, leavesMat) {
+    const group = new THREE.Group();
+
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.7, 6), trunkMat);
+    trunk.position.y = 0.35;
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    const foliage = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55), leavesMat);
+    foliage.position.y = 1.1;
+    foliage.castShadow = true;
+    group.add(foliage);
+
+    group.castShadow = true;
+    group.receiveShadow = true;
+
+    return group;
+  }
+
   function buildDuck() {
     const group = new THREE.Group();
 
@@ -166,16 +198,33 @@
   }
 
   function buildTrack() {
+    const isLevel2 = currentLevel === 2;
+
     roadGroup.clear();
     waterGroup.clear();
     carGroup.clear();
+    if (treeGroup) treeGroup.clear();
 
-    const roadMat = new THREE.MeshStandardMaterial({ color: 0x1f2937 });
+    // set sky/ground tint per level
+    if (scene) {
+      scene.background = new THREE.Color(isLevel2 ? 0x60a5fa : 0x020617);
+    }
+
+    const roadMat = new THREE.MeshStandardMaterial({ color: isLevel2 ? 0x111827 : 0x1f2937 });
     const lineMat = new THREE.MeshStandardMaterial({ color: 0xf9fafb, emissive: 0xf9fafb, emissiveIntensity: 0.4 });
-    const waterMat = new THREE.MeshStandardMaterial({ color: 0x0ea5e9, metalness: 0.7, roughness: 0.2 });
+    const waterMat = new THREE.MeshStandardMaterial({ color: 0x0ea5e9, metalness: 0.7, roughness: isLevel2 ? 0.15 : 0.25 });
 
     const segmentLength = 3.5;
     const visibleAhead = 18;
+
+    // simple low-poly trees along the sides (level 2+ only)
+    const treeMatTrunk = isLevel2 ? new THREE.MeshStandardMaterial({ color: 0x78350f }) : null;
+    const treeMatLeaves = isLevel2 ? new THREE.MeshStandardMaterial({ color: 0x16a34a }) : null;
+
+    // occasional shield power-ups (level 2 only)
+    const powerupMat = isLevel2
+      ? new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xfacc15, emissiveIntensity: 0.7 })
+      : null;
 
     for (let i = 0; i < visibleAhead; i++) {
       const zPos = -i * segmentLength;
@@ -184,10 +233,21 @@
       const isWaterGap = (i + 4) % 7 === 0;
 
       if (!isWaterGap) {
-        const road = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, segmentLength), roadMat);
+        const road = new THREE.Mesh(new THREE.BoxGeometry(6, 0.18, segmentLength), roadMat);
         road.position.set(0, 0, zPos);
         road.receiveShadow = true;
         roadGroup.add(road);
+
+        // roadside trees (level 2 only)
+        if (isLevel2 && Math.random() < 0.55 && treeMatTrunk && treeMatLeaves) {
+          const treeLeft = buildTree(treeMatTrunk, treeMatLeaves);
+          treeLeft.position.set(-3.8 - Math.random() * 1.2, 0, zPos + (Math.random() - 0.5));
+          treeGroup.add(treeLeft);
+
+          const treeRight = buildTree(treeMatTrunk, treeMatLeaves);
+          treeRight.position.set(3.8 + Math.random() * 1.2, 0, zPos + (Math.random() - 0.5));
+          treeGroup.add(treeRight);
+        }
 
         // lane separators
         for (let n = -1; n <= 1; n++) {
@@ -197,8 +257,17 @@
           roadGroup.add(line);
         }
 
+        // occasional shield power-up hovering above lane (level 2 only)
+        if (isLevel2 && powerupMat && i > 4 && Math.random() < 0.12) {
+          const laneIndexPower = Math.floor(Math.random() * LANES.length);
+          const orb = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 12), powerupMat);
+          orb.position.set(LANES[laneIndexPower], 1.4, zPos - 4 - Math.random() * 4);
+          orb.userData.type = 'shield';
+          roadGroup.add(orb);
+        }
+
         // occasional cars
-        if (i > 3 && Math.random() < 0.38) {
+        if (i > 3 && Math.random() < 0.25) {
           const laneIndex = Math.floor(Math.random() * LANES.length);
           const car = buildCar();
           car.position.set(LANES[laneIndex], 0.35, zPos - 6 - Math.random() * 10);
@@ -206,7 +275,7 @@
           carGroup.add(car);
         }
       } else {
-        const water = new THREE.Mesh(new THREE.BoxGeometry(6, 0.1, segmentLength * 0.7), waterMat);
+        const water = new THREE.Mesh(new THREE.BoxGeometry(6, 0.08, segmentLength * 0.7), waterMat);
         water.position.set(0, -0.02, zPos);
         water.receiveShadow = true;
         waterGroup.add(water);
@@ -263,8 +332,11 @@
     jumpTime = 0;
     lastTime = null;
     gameOver = false;
+    isShielded = false;
+    shieldTime = 0;
 
     scoreValue.textContent = '0';
+    difficultyValue.textContent = currentLevel.toString();
     statusCopy.textContent = 'Dodge cars, hop water. Good luck!';
     speedDot.style.background = '#22c55e';
 
@@ -278,6 +350,7 @@
     if (!scene) init3D();
     resetGame();
     gameRunning = true;
+    setDifficultyButtonsEnabled(false);
     overlay.classList.add('overlay--hidden');
     overlay.setAttribute('aria-hidden', 'true');
     statusCopy.textContent = 'Stay sharp – speed ramps up as you survive.';
@@ -286,6 +359,7 @@
   function endGame(reason) {
     gameRunning = false;
     gameOver = true;
+    setDifficultyButtonsEnabled(true);
     overlay.classList.remove('overlay--hidden');
     overlay.removeAttribute('aria-hidden');
 
@@ -296,7 +370,7 @@
       title = 'Splash!';
       text = 'You misjudged the canal. Time to towel off and retry.';
     }
-
+  
     overlayTitle.textContent = title;
     overlayText.textContent = `${text} Final score: ${score.toFixed(0)}.`;
     statusCopy.textContent = 'Run ended. Hit Start to try again.';
@@ -312,18 +386,47 @@
     speedDot.style.boxShadow = '0 0 0 6px rgba(248,113,113,0.3)';
   }
 
+  function unlockLevel(level) {
+    gameRunning = false;
+    gameOver = true;
+    setDifficultyButtonsEnabled(true);
+    overlay.classList.remove('overlay--hidden');
+    overlay.removeAttribute('aria-hidden');
+
+    overlayTitle.textContent = `Level ${level} unlocked!`;
+    overlayText.textContent = `Great job! Press Start to begin level ${level}.`;
+    statusCopy.textContent = `Ready for level ${level}. Tap Start when you are set.`;
+    speedDot.style.background = '#22c55e';
+    speedDot.style.boxShadow = '0 0 0 6px rgba(34, 197, 94, 0.25)';
+    currentLevel = level;
+    difficultyValue.textContent = level.toString();
+  }
+
   function update(delta) {
+    // update shield timer
+    if (isShielded) {
+      shieldTime += delta;
+      if (shieldTime >= SHIELD_DURATION) {
+        isShielded = false;
+        statusCopy.textContent = 'Shield faded. Watch the traffic!';
+      }
+    }
     if (!scene) return;
 
-    // Increase difficulty
-    speed += delta * 0.12; // slower ramp for easier play
-    const normSpeed = Math.min((speed - baseSpeed) / 8, 1);
-    const green = 197 - normSpeed * 100;
-    const hueColor = `rgb(34, ${green}, 94)`;
-    speedDot.style.background = hueColor;
+    // Keep speed constant at the base value
+    speed = baseSpeed;
+    speedDot.style.background = '#22c55e';
+    speedDot.style.boxShadow = '0 0 0 6px rgba(34, 197, 94, 0.25)';
 
     score += delta * (1.4 + speed * 0.12);
     scoreValue.textContent = Math.floor(score).toString();
+
+    // automatic level progression by score
+    const s = Math.floor(score);
+    if (currentLevel === 1 && s >= 100) {
+      unlockLevel(2);
+      return;
+    }
 
     // animate duck lane lerp
     if (duck) {
@@ -332,7 +435,7 @@
 
       // jump arc
       if (isJumping) {
-        jumpTime += delta;
+        jumpTime += 0.016;
         const t = Math.min(jumpTime / JUMP_DURATION, 1);
         const height = Math.sin(t * Math.PI) * DUCK_JUMP_HEIGHT;
         duck.position.y = DUCK_Y_IDLE + height;
@@ -352,7 +455,7 @@
 
     // move world towards camera
     const moveAmount = speed * delta;
-    [...roadGroup.children, ...waterGroup.children, ...carGroup.children].forEach((obj) => {
+    [...roadGroup.children, ...waterGroup.children, ...carGroup.children, ...treeGroup.children].forEach((obj) => {
       obj.position.z += moveAmount;
     });
 
@@ -367,8 +470,8 @@
     });
 
     carGroup.children.forEach((car) => {
-      const s = car.userData.speed || speed + 1;
-      car.position.z += s * delta;
+      const sCar = car.userData.speed || speed + 1;
+      car.position.z += sCar * delta;
       if (car.position.z > 8) {
         // respawn further back in random lane
         const laneIndexNew = Math.floor(Math.random() * LANES.length);
@@ -385,10 +488,30 @@
     if (!duck) return;
     const duckBox = new THREE.Box3().setFromObject(duck);
 
+    // power-up pickups and hard-mode hazards
+    for (const obj of roadGroup.children) {
+      if (obj.userData && obj.userData.type === 'shield') {
+        const box = new THREE.Box3().setFromObject(obj);
+        if (duckBox.intersectsBox(box)) {
+          isShielded = true;
+          shieldTime = 0;
+          statusCopy.textContent = 'Shielded! One hit won\'t stop you.';
+          roadGroup.remove(obj);
+        }
+      }
+    }
+
     // car collisions
     for (const car of carGroup.children) {
       const carBox = new THREE.Box3().setFromObject(car);
       if (duckBox.intersectsBox(carBox)) {
+        if (isShielded) {
+          // consume shield and knock car away
+          isShielded = false;
+          car.position.z += 6;
+          statusCopy.textContent = 'Shield broke that hit – keep going!';
+          continue;
+        }
         endGame('car');
         return;
       }
@@ -439,6 +562,53 @@
     isJumping = true;
     jumpTime = 0;
   }
+
+  // Difficulty button state manager
+  function setDifficultyButtonsEnabled(enabled) {
+    if (!easyButton || !hardButton) return;
+    easyButton.disabled = !enabled;
+    hardButton.disabled = !enabled;
+    easyButton.style.opacity = enabled ? '1' : '0.5';
+    hardButton.style.opacity = enabled ? '1' : '0.5';
+    easyButton.style.pointerEvents = enabled ? 'auto' : 'none';
+    hardButton.style.pointerEvents = enabled ? 'auto' : 'none';
+  }
+
+  // Level selection buttons (still let player start in level 1 or 2)
+  function setupDifficultyButtons() {
+    if (!easyButton || !hardButton) {
+      console.warn('Difficulty buttons not found');
+      return;
+    }
+    
+    easyButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (gameRunning || gameOver) return;
+      isEasyMode = true;
+      DUCK_JUMP_HEIGHT = BASE_JUMP_HEIGHT + 0.3; // 2.7
+      JUMP_DURATION = BASE_JUMP_DURATION + 0.2; // 1.2
+
+      easyButton.classList.add('difficulty__button--active');
+      hardButton.classList.remove('difficulty__button--active');
+
+      statusCopy.textContent = 'Easy mode: Longer jumps, more air time!';
+    });
+    
+    hardButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (gameRunning || gameOver) return;
+      isEasyMode = false;
+      DUCK_JUMP_HEIGHT = BASE_JUMP_HEIGHT; // 2.4
+      JUMP_DURATION = BASE_JUMP_DURATION; // 1.2
+
+      hardButton.classList.add('difficulty__button--active');
+      easyButton.classList.remove('difficulty__button--active');
+
+      statusCopy.textContent = 'Hard mode: Tight, fast jumps!';
+    });
+  }
+  
+  setupDifficultyButtons();
 
   // Keyboard controls
   window.addEventListener('keydown', (e) => {
@@ -503,9 +673,12 @@
 
   // Start button
   if (startButton) {
-    startButton.addEventListener('click', () => {
+    startButton.addEventListener('click', (e) => {
+      e.preventDefault();
       startGame();
     });
+  } else {
+    console.warn('Start button not found');
   }
 
   // Help toggle
@@ -520,6 +693,12 @@
   // Initial state
   if (helpPanel) helpPanel.style.display = 'block';
   if (overlay) overlay.classList.remove('overlay--hidden');
+  if (difficultyValue) difficultyValue.textContent = currentLevel.toString();
+  
+  // Set Easy mode as default and enable difficulty buttons
+  DUCK_JUMP_HEIGHT = BASE_JUMP_HEIGHT + 0.2; // 2.3
+  JUMP_DURATION = BASE_JUMP_DURATION + 0.2; // 1.0
+  setDifficultyButtonsEnabled(true);
 
   // Kick off
   init3D();
